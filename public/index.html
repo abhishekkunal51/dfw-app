@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distributed Firewall Request Portal</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Distributed Firewall Request Portal</h1>
+            <p>Submit firewall rule requests for administrator approval</p>
+        </header>
+
+        <main>
+            <!-- Request Form Section -->
+            <section class="form-section">
+                <h2>Submit New Firewall Rule Request</h2>
+                <form id="firewallForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="rule_name">Rule Name *</label>
+                            <input type="text" id="rule_name" name="rule_name" required placeholder="e.g., Allow-Web-Traffic">
+                        </div>
+                        <div class="form-group">
+                            <label for="priority">Priority (1-1000)</label>
+                            <input type="number" id="priority" name="priority" min="1" max="1000" value="100">
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="description">Description</label>
+                        <textarea id="description" name="description" rows="2" placeholder="Describe the purpose of this rule"></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="source_ip">Source IP/CIDR *</label>
+                            <input type="text" id="source_ip" name="source_ip" required placeholder="e.g., 192.168.1.0/24 or Any">
+                        </div>
+                        <div class="form-group">
+                            <label for="destination_ip">Destination IP/CIDR *</label>
+                            <input type="text" id="destination_ip" name="destination_ip" required placeholder="e.g., 10.0.0.5 or Any">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="port">Port *</label>
+                            <input type="text" id="port" name="port" required placeholder="e.g., 80, 443, 8000-8080">
+                        </div>
+                        <div class="form-group">
+                            <label for="protocol">Protocol *</label>
+                            <select id="protocol" name="protocol" required>
+                                <option value="">Select Protocol</option>
+                                <option value="TCP">TCP</option>
+                                <option value="UDP">UDP</option>
+                                <option value="ICMP">ICMP</option>
+                                <option value="Any">Any</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="direction">Direction *</label>
+                            <select id="direction" name="direction" required>
+                                <option value="">Select Direction</option>
+                                <option value="Inbound">Inbound</option>
+                                <option value="Outbound">Outbound</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="action">Action *</label>
+                            <select id="action" name="action" required>
+                                <option value="">Select Action</option>
+                                <option value="Allow">Allow</option>
+                                <option value="Deny">Deny</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="service">Service</label>
+                        <input type="text" id="service" name="service" placeholder="e.g., HTTP, SSH, MySQL, Custom">
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Submit Request</button>
+                        <button type="reset" class="btn btn-secondary">Clear Form</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- NSX-T Integration Section -->
+            <section class="nsx-section">
+                <div class="nsx-header">
+                    <h2>NSX-T Integration</h2>
+                    <div class="nsx-status" id="nsxStatus">
+                        <span class="status-indicator" id="nsxIndicator"></span>
+                        <span id="nsxStatusText">Checking connection...</span>
+                    </div>
+                </div>
+                <div class="nsx-controls">
+                    <button class="btn btn-secondary" onclick="testNSXConnection()">Test Connection</button>
+                    <button class="btn btn-primary" onclick="pushApprovedRules()" id="pushRulesBtn">
+                        Push Approved Rules to NSX-T
+                    </button>
+                    <span id="pendingPushCount" class="badge">0 rules pending push</span>
+                </div>
+            </section>
+
+            <!-- Rules List Section -->
+            <section class="rules-section">
+                <div class="rules-header">
+                    <h2>Firewall Rule Requests</h2>
+                    <div class="filters">
+                        <input type="text" id="searchInput" placeholder="Search rules...">
+                        <select id="statusFilter">
+                            <option value="all">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="loadRules()">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="rulesTable">
+                        <thead>
+                            <tr>
+                                <th>Rule Name</th>
+                                <th>Source</th>
+                                <th>Destination</th>
+                                <th>Port</th>
+                                <th>Protocol</th>
+                                <th>Direction</th>
+                                <th>Action</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>NSX-T</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rulesTableBody">
+                            <!-- Rules will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+                <p id="noRulesMessage" class="no-rules" style="display: none;">No firewall rules found.</p>
+            </section>
+        </main>
+
+        <!-- Rule Details Modal -->
+        <div id="ruleModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <h2>Rule Details</h2>
+                <div id="ruleDetails"></div>
+                <div class="modal-actions" id="modalActions"></div>
+            </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
